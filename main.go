@@ -3,7 +3,12 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+	"os"
 	"runtime"
+
+	"github.com/zuiwuchang/cfip/cf"
+	"github.com/zuiwuchang/cfip/configure"
 )
 
 var (
@@ -27,7 +32,18 @@ func main() {
 		fmt.Println(runtime.GOOS+`/`+runtime.GOARCH, Date, Commit)
 		return
 	}
+	c, e := configure.Load(conf)
+	if e != nil {
+		log.Fatalln(e)
+	}
 
-	
+	ctx, e := cf.New(c)
+	if e != nil {
+		log.Fatalln(e)
+	}
 
+	e = ctx.Serve()
+	if e != nil {
+		os.Exit(1)
+	}
 }

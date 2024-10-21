@@ -55,7 +55,7 @@ case "$1" in
     run)
         shift
         cd "$BashDir/bin"
-        ./cfip
+        ./cfip -conf v4.jsonnet
         exit $?
     ;;
     docker)

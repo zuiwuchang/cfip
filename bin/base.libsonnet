@@ -1,15 +1,25 @@
 {
   // 間隔多久執行一次任務，如果不設置則只執行一次
-  interval: '6h',
+  // interval: '6h',
+
+  // 並行工作數量，建議不要設置太高，太高的並行存在諸多問題
+  // 1. 對測試的網站造成太大壓力，並且可能會被加入黑名單禁止訪問
+  // 2. 容易引發防火牆的 sni 阻斷，一段時間內都禁止你和 cloudflare 的任何連接
+  // 3. 對運行測試的計算機造成過大的壓力
+  // 默認 5 就很不錯，無論對運行 測試的計算機 cloudflare 測試網站造成的影響都很微弱，也不容易引發 sni 阻斷
+  worker: 5,
   request: {
     // 請求超時時間
-    timeout: '300ms',
+    timeout: '400ms',
 
-    // 測試多少次
+    // 對同一 ip 要進行測試多少次
     count: 3,
 
     // 請求 url
     url: 'https://usa.visa.com/',
+
+    // 只要請求返回的 http status 與此相等時才認爲請求成功，
+    // 如果 code <1 則 將 [200,299] 的 htttp status 都認爲成功
     // code:200,
     // 防止 tls 阻斷
     sni: [
@@ -119,6 +129,14 @@
       'www.visasoutheasteurope.com',  // en-ME
       // es-NI
       'www.visa.co.ni',
+    ],
+    // 如果設置每次都以不同的 UserAgent 發送請求
+    userAgent: [
+      'Mozilla/5.0 (X11; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/113.0',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:131.0) Gecko/20100101 Firefox/131.0',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36',
     ],
   },
   found: {
