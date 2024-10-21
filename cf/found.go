@@ -2,10 +2,16 @@ package cf
 
 import (
 	"context"
+	"log"
 	"net"
 	"sync"
+	"time"
 )
 
+type Valid struct {
+	ip   string
+	used []time.Duration
+}
 type Found struct {
 	r     IPRange
 	ip    int
@@ -18,9 +24,10 @@ type Found struct {
 	cancel context.CancelFunc
 
 	keys map[string]bool
-	ch   chan string
+	ch   chan *Valid
 
-	usedTest int
+	tests  int
+	valids []*Valid
 }
 
 func newFound(r IPRange, ip, valid, test int) *Found {
@@ -33,7 +40,7 @@ func newFound(r IPRange, ip, valid, test int) *Found {
 		valid:  valid,
 		test:   test,
 		keys:   make(map[string]bool),
-		ch:     make(chan string),
+		ch:     make(chan *Valid),
 	}
 }
 func (f *Found) serve() {
@@ -67,6 +74,10 @@ func (f *Found) serve() {
 		}
 		f.Lock()
 		// check end
+		if f.checkEnd() {
+			f.Unlock()
+			return
+		}
 
 		// range new ip
 		for _, ip = range ips {
@@ -77,7 +88,6 @@ func (f *Found) serve() {
 
 			strs = append(strs, s)
 			f.keys[s] = true
-			f.usedTest++
 		}
 		for _, s = range strs {
 			delete(f.keys, s)
@@ -86,20 +96,39 @@ func (f *Found) serve() {
 
 		for _, s = range strs {
 			select {
-			case f.ch <- s:
+			case f.ch <- &Valid{
+				ip: s,
+			}:
 			case <-f.ctx.Done():
 				return
 			}
 		}
 	}
 }
-func (f *Found) Get() (ctx context.Context, ip string, e error) {
+func (f *Found) checkEnd() bool {
+	if len(f.valids) >= f.valid && f.tests >= f.test {
+		f.cancel()
+		return true
+	}
+	return false
+}
+func (f *Found) Get() (ctx context.Context, ip *Valid, e error) {
 	select {
 	case <-f.ctx.Done():
 		e = f.ctx.Err()
 		return
 	case ip = <-f.ch:
 		ctx = f.ctx
+
+		f.Lock()
+		defer f.Unlock()
+		e = f.ctx.Err()
+		if e != nil {
+			return
+		}
+		f.tests++
+		log.Printf("tests[%d]=%s valids=%d\n", f.tests, ip, len(f.valids))
+
 	}
 	return
 }

@@ -10,7 +10,7 @@
   worker: 5,
   request: {
     // 請求超時時間
-    timeout: '400ms',
+    timeout: '800ms',
 
     // 對同一 ip 要進行測試多少次
     count: 3,
@@ -35,7 +35,7 @@
       'www.visa.com.au',  // en-AU
       'www.visa.co.il',  // he-IL
 
-      'https://www.visa.hu',  // hu-HU
+      'www.visa.hu',  // hu-HU
       'www.visa.com.jm',  // en-JM
       'www.visa.com.sv',  // es-SV
       'bd.visa.com',  // en-BD
