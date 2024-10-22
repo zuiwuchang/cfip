@@ -7,6 +7,7 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/google/go-jsonnet"
 	"github.com/zuiwuchang/cfip/cf"
 	"github.com/zuiwuchang/cfip/configure"
 )
@@ -17,11 +18,12 @@ var (
 
 func main() {
 	var (
-		conf          string
-		version, help bool
+		conf                 string
+		version, help, print bool
 	)
 	flag.BoolVar(&help, "help", false, "display help")
 	flag.BoolVar(&version, "version", false, "display version")
+	flag.BoolVar(&print, "print", false, "display configure json")
 	flag.StringVar(&conf, "conf", "cfip.jsonnet", "configure filepath")
 	flag.Parse()
 	if help {
@@ -32,6 +34,18 @@ func main() {
 		fmt.Println(runtime.GOOS+`/`+runtime.GOARCH, Date, Commit)
 		return
 	}
+	log.SetFlags(log.Lshortfile | log.LstdFlags)
+	if print {
+		vm := jsonnet.MakeVM()
+		jsonStr, e := vm.EvaluateFile(conf)
+		if e != nil {
+			log.Fatalln(e)
+			return
+		}
+		fmt.Println(jsonStr)
+		return
+	}
+
 	c, e := configure.Load(conf)
 	if e != nil {
 		log.Fatalln(e)

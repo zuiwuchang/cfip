@@ -1,9 +1,12 @@
 package cf
 
 import (
+	"container/heap"
 	"context"
+	"fmt"
 	"log"
 	"net"
+	"sort"
 	"sync"
 	"time"
 )
@@ -11,6 +14,8 @@ import (
 type Valid struct {
 	ip   string
 	used []time.Duration
+	avg  time.Duration
+	last time.Time
 }
 type Found struct {
 	r     IPRange
@@ -27,7 +32,25 @@ type Found struct {
 	ch   chan *Valid
 
 	tests  int
-	valids []*Valid
+	valids maxValid
+
+	next chan *Valid
+}
+type maxValid []*Valid
+
+func (a maxValid) Len() int      { return len(a) }
+func (a maxValid) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+
+func (a maxValid) Less(i, j int) bool { return a[i].avg > a[j].avg }
+func (h *maxValid) Push(x interface{}) {
+	*h = append(*h, x.(*Valid))
+}
+func (h *maxValid) Pop() interface{} {
+	old := *h
+	n := len(old)
+	x := old[n-1]
+	*h = old[0 : n-1]
+	return x
 }
 
 func newFound(r IPRange, ip, valid, test int) *Found {
@@ -41,6 +64,7 @@ func newFound(r IPRange, ip, valid, test int) *Found {
 		test:   test,
 		keys:   make(map[string]bool),
 		ch:     make(chan *Valid),
+		next:   make(chan *Valid, 100),
 	}
 }
 func (f *Found) serve() {
@@ -54,6 +78,29 @@ func (f *Found) serve() {
 			}
 			select {
 			case ch <- ips:
+			case <-f.ctx.Done():
+				return
+			}
+		}
+	}()
+	go func() {
+		var (
+			ip   *Valid
+			wait time.Duration
+		)
+		for {
+			select {
+			case ip = <-f.next:
+			case <-f.ctx.Done():
+				return
+			}
+			wait = time.Since(ip.last)
+			if wait > time.Second*5 {
+				time.Sleep(wait - time.Second*5)
+			}
+
+			select {
+			case f.ch <- ip:
 			case <-f.ctx.Done():
 				return
 			}
@@ -80,6 +127,9 @@ func (f *Found) serve() {
 		}
 
 		// range new ip
+		if strs != nil {
+			strs = strs[:0]
+		}
 		for _, ip = range ips {
 			s = ip.String()
 			if f.keys[s] {
@@ -127,8 +177,49 @@ func (f *Found) Get() (ctx context.Context, ip *Valid, e error) {
 			return
 		}
 		f.tests++
-		log.Printf("tests[%d]=%s valids=%d\n", f.tests, ip, len(f.valids))
+		log.Printf("tests[%d]=%v valids=%d\n", f.tests, ip, len(f.valids))
 
 	}
 	return
+}
+func (f *Found) SetOk(ip *Valid) {
+	f.Lock()
+	defer f.Unlock()
+
+	ip.avg = 0
+	for _, v := range ip.used {
+		ip.avg += v
+	}
+
+	heap.Push(&f.valids, ip)
+	if len(f.valids) > f.valid {
+		heap.Pop(&f.valids)
+	}
+	f.keys[ip.ip] = true
+
+	if !f.checkEnd() {
+		return
+	}
+
+	sort.Sort(f.valids)
+	f.valids = f.valids[len(f.valids)-f.ip:]
+	for _, ip := range f.valids {
+		fmt.Println(ip)
+	}
+}
+func (f *Found) Next(ip *Valid) {
+	select {
+	case f.next <- ip:
+		return
+	case <-f.ctx.Done():
+		return
+	default:
+	}
+
+	go func() {
+		select {
+		case f.next <- ip:
+		case <-f.ctx.Done():
+		}
+	}()
 }

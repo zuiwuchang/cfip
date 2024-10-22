@@ -7,7 +7,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -57,11 +56,11 @@ func New(conf *configure.Configure) (c *Context, e error) {
 	}
 	valid := conf.Found.Valid
 	if valid < ip {
-		valid = ip * 5
+		valid = ip * 2
 	}
 	test := conf.Found.Test
 	if test < valid {
-		test = valid * 20
+		test = valid * 10
 	}
 	c = &Context{
 		interval: interval,
@@ -75,15 +74,19 @@ func New(conf *configure.Configure) (c *Context, e error) {
 	return
 }
 func (c *Context) Serve() (e error) {
+	var last time.Time
 	if c.interval > 0 {
 		for {
+			last = time.Now()
 			c.serve()
 
-			log.Println(`next after`, c.interval)
+			log.Println(`all used=`+time.Since(last).String(), `next after=`+c.interval.String())
 			time.Sleep(c.interval)
 		}
 	} else {
+		last = time.Now()
 		e = c.serve()
+		log.Println(`all used=` + time.Since(last).String())
 	}
 
 	return
@@ -95,11 +98,14 @@ func (c *Context) serve() (e error) {
 	found := newFound(c.r, c.ip, c.valid, c.test)
 	for i := 0; i < c.worker; i++ {
 		go func() {
-			c.do(found)
 			defer wait.Done()
+			c.do(found)
 		}()
 	}
-	go found.serve()
+	go func() {
+		defer wait.Done()
+		found.serve()
+	}()
 
 	wait.Wait()
 	return
@@ -123,14 +129,19 @@ func (c *Context) do(found *Found) {
 		code, e = c.doReq(ctx, found, ip)
 		if e != nil {
 			continue
-		} else if code != 0 {
+		} else if code == 0 {
 			continue
 		}
 
 		used = time.Since(last)
-		log.Println(`-------------used`, used, ip, code)
+
 		ip.used = append(ip.used, used)
-		os.Exit(1)
+		if len(ip.used) >= c.request.count {
+			found.SetOk(ip)
+		} else {
+			ip.last = time.Now()
+			found.Next(ip)
+		}
 	}
 }
 

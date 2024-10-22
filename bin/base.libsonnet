@@ -79,7 +79,7 @@
       'www.visa.dk',  // da-DK
       'www.visa.mn',  // mn-MN
       'www.visa.com.az',  // ru-AZ
-      'www.visa.com.ua',  // uk-UA
+      // 'www.visa.com.ua',  // uk-UA
       'usa.visa.com',  // en-US
       'myanmar.visa.com',  // en-MM
       'www.visa.lv',  // lv-LV
@@ -102,7 +102,7 @@
       'www.visa.com.tr',  // tr-TR
       'www.visa.ee',  // et-EE
       'www.visa.com.kh',  // km-KM
-      'www.visa.fr',  // fr-FR
+      // 'www.visa.fr',  // fr-FR
 
       'www.visa.co.uk',  //  en-GB
       'www.visa.fi',  // fi-FI
@@ -141,9 +141,9 @@
   },
   found: {
     // 每次任務的目標是要尋找多少個 ip
-    ip: 10,
+    ip: 5,
     // 至少要尋找多少個有效 ip，從中選擇最優(平均延遲最低) ip
-    valid: 50,
+    valid: 10,
     // 至少要測試多少個 ip
     test: 1000,
   },
