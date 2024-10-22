@@ -24,6 +24,7 @@ type Context struct {
 	ip    int
 	valid int
 	test  int
+	max   int
 
 	request *Request
 }
@@ -64,6 +65,10 @@ func New(conf *configure.Configure) (c *Context, e error) {
 	if test < valid {
 		test = valid * 10
 	}
+	max := conf.Found.Max
+	if max > 0 && max < conf.Found.Test {
+		max = conf.Found.Test
+	}
 	c = &Context{
 		url:      conf.Found.URL,
 		interval: interval,
@@ -72,6 +77,7 @@ func New(conf *configure.Configure) (c *Context, e error) {
 		ip:       ip,
 		valid:    valid,
 		test:     test,
+		max:      max,
 		request:  req,
 	}
 	return
@@ -98,7 +104,7 @@ func (c *Context) serve() (e error) {
 	var wait sync.WaitGroup
 	wait.Add(c.worker + 1)
 
-	found := newFound(c.r, c.ip, c.valid, c.test, c.url)
+	found := newFound(c.r, c.ip, c.valid, c.test, c.max, c.url)
 	for i := 0; i < c.worker; i++ {
 		go func() {
 			defer wait.Done()
@@ -111,6 +117,8 @@ func (c *Context) serve() (e error) {
 	}()
 
 	wait.Wait()
+
+	found.Post()
 	return
 }
 func (c *Context) do(found *Found) {

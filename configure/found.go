@@ -9,4 +9,6 @@ type Found struct {
 	Test int `json:"test"`
 	// 將結果以 post json 發送到此 url
 	URL string `json:"url"`
+	// 最多要測試多少 ip
+	Max int `json:"max"`
 }

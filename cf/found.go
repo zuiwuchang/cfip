@@ -54,6 +54,7 @@ type Found struct {
 	ip    int
 	valid int
 	test  int
+	max   int
 
 	sync.Mutex
 
@@ -85,7 +86,7 @@ func (h *maxValid) Pop() interface{} {
 	return x
 }
 
-func newFound(r IPRange, ip, valid, test int, url string) *Found {
+func newFound(r IPRange, ip, valid, test, max int, url string) *Found {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Found{
 		url:    url,
@@ -95,6 +96,7 @@ func newFound(r IPRange, ip, valid, test int, url string) *Found {
 		ip:     ip,
 		valid:  valid,
 		test:   test,
+		max:    max,
 		keys:   make(map[string]bool),
 		ch:     make(chan *Valid),
 		next:   make(chan *Valid, 100),
@@ -193,57 +195,37 @@ func (f *Found) checkEnd() bool {
 		f.cancel()
 		return true
 	}
+	if f.max > 0 && f.tests >= f.max {
+		f.cancel()
+		return true
+	}
 	return false
 }
-func (f *Found) Get() (ctx context.Context, ip *Valid, e error) {
-	select {
-	case <-f.ctx.Done():
-		e = f.ctx.Err()
-		return
-	case ip = <-f.ch:
-		ctx = f.ctx
-
-		f.Lock()
-		defer f.Unlock()
-		e = f.ctx.Err()
-		if e != nil {
-			return
-		}
-		f.tests++
-		log.Printf("tests[%d]=%v valids=%d\n", f.tests, ip, len(f.valids))
-
-	}
-	return
-}
-func (f *Found) SetOk(ip *Valid) {
-	f.Lock()
-	defer f.Unlock()
-
-	ip.avg = 0
-	for _, v := range ip.used {
-		ip.avg += v
-	}
-
-	heap.Push(&f.valids, ip)
-	if len(f.valids) > f.valid {
-		heap.Pop(&f.valids)
-	}
-	f.keys[ip.ip] = true
-
-	if !f.checkEnd() {
+func (f *Found) Post() {
+	if len(f.valids) == 0 {
 		return
 	}
-
 	sort.Sort(f.valids)
 
 	i := len(f.valids) - f.ip
-	valids := f.valids[i:]
+	var (
+		valids []*Valid
+		other  []*Valid
+	)
+	if i >= 0 {
+		valids = f.valids[i:]
+		other = f.valids[:i]
+	} else {
+		valids = f.valids
+	}
+
 	fmt.Println(`-------`)
+	var ip *Valid
 	for i := len(valids) - 1; i >= 0; i-- {
 		ip = valids[i]
 		fmt.Println(ip)
 	}
-	other := f.valids[:i]
+
 	if len(other) != 0 {
 		fmt.Println(`-------`)
 		for i := len(other) - 1; i >= 0; i-- {
@@ -290,6 +272,45 @@ func (f *Found) SetOk(ip *Valid) {
 			log.Println(string(b))
 			return
 		}
+	}
+}
+func (f *Found) Get() (ctx context.Context, ip *Valid, e error) {
+	select {
+	case <-f.ctx.Done():
+		e = f.ctx.Err()
+		return
+	case ip = <-f.ch:
+		ctx = f.ctx
+
+		f.Lock()
+		defer f.Unlock()
+		e = f.ctx.Err()
+		if e != nil {
+			return
+		}
+		f.tests++
+		log.Printf("tests[%d]=%v valids=%d\n", f.tests, ip, len(f.valids))
+
+	}
+	return
+}
+func (f *Found) SetOk(ip *Valid) {
+	f.Lock()
+	defer f.Unlock()
+
+	ip.avg = 0
+	for _, v := range ip.used {
+		ip.avg += v
+	}
+
+	heap.Push(&f.valids, ip)
+	if len(f.valids) > f.valid {
+		heap.Pop(&f.valids)
+	}
+	f.keys[ip.ip] = true
+
+	if !f.checkEnd() {
+		return
 	}
 }
 func (f *Found) Next(ip *Valid) {
