@@ -118,22 +118,17 @@ if [[ -f "$name" ]];then
 fi
 source=(
     "$target"
-    example
+    base.libsonnet
+    v4.jsonnet
+    v6.jsonnet
 )
 other=()
-case "$os" in
-    linux)
-        other=(
-            streamf.service
-        )
-    ;;
-    windows)
-        other=(
-            streamf-service.xml
-            streamf-service.exe
-        )
-    ;;
-esac
+# case "$os" in
+#     linux)
+#     ;;
+#     windows)
+#     ;;
+# esac
 
 exec="${args[@]} ${source[@]} ${other[@]}"
 echo $exec
