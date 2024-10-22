@@ -163,7 +163,6 @@ func (c *Context) doReq(ctx context.Context, found *Found, ip *Valid) (status in
 				} else {
 					addr = ip.ip + addr[i:]
 				}
-
 				return netdialder.DialContext(ctx, network, addr)
 			},
 		},

@@ -51,10 +51,10 @@ do
 done
 
 cd "$Dir/docker"
-cp "$Dir/bin/streamf" "$Dir/docker/root/usr/local/bin/streamf" 
+cp "$Dir/bin/cfip" "$Dir/docker/root/usr/local/bin/cfip" 
 
 args=(
-    sudo docker build -t "\"$Docker:$Version\"" .
+    sudo docker build --network host -t "\"$Docker:$Version\"" .
 )
 exec="${args[@]}"
 echo $exec
