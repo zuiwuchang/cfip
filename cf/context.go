@@ -19,6 +19,8 @@ type Context struct {
 	interval time.Duration
 	worker   int
 
+	url string
+
 	ip    int
 	valid int
 	test  int
@@ -63,6 +65,7 @@ func New(conf *configure.Configure) (c *Context, e error) {
 		test = valid * 10
 	}
 	c = &Context{
+		url:      conf.Found.URL,
 		interval: interval,
 		r:        r,
 		worker:   worker,
@@ -95,7 +98,7 @@ func (c *Context) serve() (e error) {
 	var wait sync.WaitGroup
 	wait.Add(c.worker + 1)
 
-	found := newFound(c.r, c.ip, c.valid, c.test)
+	found := newFound(c.r, c.ip, c.valid, c.test, c.url)
 	for i := 0; i < c.worker; i++ {
 		go func() {
 			defer wait.Done()

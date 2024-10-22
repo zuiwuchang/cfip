@@ -1,11 +1,15 @@
 package cf
 
 import (
+	"bytes"
 	"container/heap"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"net/http"
 	"sort"
 	"sync"
 	"time"
@@ -17,7 +21,35 @@ type Valid struct {
 	avg  time.Duration
 	last time.Time
 }
+
+func (v *Valid) String() string {
+	var total string
+	if v.avg > 0 {
+		total = v.avg.String()
+	}
+	var strs []string
+	if len(v.used) != 0 {
+		strs = make([]string, 0, len(v.used))
+		for _, s := range v.used {
+			strs = append(strs, s.String())
+		}
+	}
+	b, _ := json.Marshal(ValidInfo{
+		IP:    v.ip,
+		Total: total,
+		Used:  strs,
+	})
+	return string(b)
+}
+
+type ValidInfo struct {
+	IP    string   `json:"ip,omitempty"`
+	Total string   `json:"total,omitempty"`
+	Used  []string `json:"used,omitempty"`
+}
+
 type Found struct {
+	url   string
 	r     IPRange
 	ip    int
 	valid int
@@ -53,9 +85,10 @@ func (h *maxValid) Pop() interface{} {
 	return x
 }
 
-func newFound(r IPRange, ip, valid, test int) *Found {
+func newFound(r IPRange, ip, valid, test int, url string) *Found {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Found{
+		url:    url,
 		ctx:    ctx,
 		cancel: cancel,
 		r:      r,
@@ -202,9 +235,61 @@ func (f *Found) SetOk(ip *Valid) {
 	}
 
 	sort.Sort(f.valids)
-	f.valids = f.valids[len(f.valids)-f.ip:]
-	for _, ip := range f.valids {
+
+	i := len(f.valids) - f.ip
+	valids := f.valids[i:]
+	fmt.Println(`-------`)
+	for i := len(valids) - 1; i >= 0; i-- {
+		ip = valids[i]
 		fmt.Println(ip)
+	}
+	other := f.valids[:i]
+	if len(other) != 0 {
+		fmt.Println(`-------`)
+		for i := len(other) - 1; i >= 0; i-- {
+			ip = other[i]
+			fmt.Println(ip)
+		}
+	}
+
+	if f.url != `` {
+		strs := make([]string, 0, len(f.valids))
+		for i := len(f.valids) - 1; i >= 0; i-- {
+			strs = append(strs, f.valids[i].ip)
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+		defer cancel()
+		b, e := json.Marshal(map[string]any{
+			`n`:  f.ip,
+			`ip`: strs,
+		})
+		if e != nil {
+			log.Println(e)
+			return
+		}
+		req, e := http.NewRequestWithContext(ctx, http.MethodPost, f.url, bytes.NewReader(b))
+		if e != nil {
+			log.Println(e)
+			return
+		}
+		req.Header.Add(`Content-Type`, `application/json`)
+		resp, e := http.DefaultClient.Do(req)
+		if e != nil {
+			log.Println(e)
+			return
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			log.Println(resp.StatusCode, resp.Status)
+
+			b, e := io.ReadAll(io.LimitReader(resp.Body, 1024*32))
+			if e != nil {
+				log.Println(e)
+				return
+			}
+			log.Println(string(b))
+			return
+		}
 	}
 }
 func (f *Found) Next(ip *Valid) {

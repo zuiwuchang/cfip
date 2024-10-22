@@ -7,4 +7,6 @@ type Found struct {
 	Valid int `json:"valid"`
 	// 至少要測試多少個 ip
 	Test int `json:"test"`
+	// 將結果以 post json 發送到此 url
+	URL string `json:"url"`
 }
